@@ -27,7 +27,7 @@ int Parsing(char* str, double* left, double* right)
     if (!str || *str != '[')
         return 1;
 
-    for (pos = 1; str[pos] == '.' || (str[pos] != ',' && str[pos] != '\0'); ++pos)
+    for (pos = 1; str[pos] == '.' || str[pos] == '-' || (str[pos] != ',' && str[pos] != '\0'); ++pos)
         ;
 
     if (str[pos] == '\0')
@@ -47,7 +47,7 @@ int main(int argc, char** argv)
     int status, n;
     int* status_addr;
     double left, right;
-    int threads_max = 8;
+    int threads_max = 4;
     double* res;
     char segment[sizeof(double) * 2 + 1];
     if (argc == 2) {
@@ -72,60 +72,54 @@ int main(int argc, char** argv)
     res = (double*)malloc(sizeof(double) * n);
 
     while (num < n) {
-        // num = (num + 1) % threads_max;
-        num = modsum(num, threads_max);
+        // help_num = (help_num + 1) % threads_max;
+        int help_num = modsum(num, threads_max);
 
-        arguments[num].X = iter;
-        arguments[num].res = res + num;
-        status = pthread_create(thread + num, NULL, &F, (void*)(arguments + num));
+        arguments[help_num].X = iter;
+        arguments[help_num].res = res + num;
+        status = pthread_create(thread + help_num, NULL, &F, (void*)(arguments + help_num));
         if (status != SUCCESS) {
             printf("main error: can't create thread, status = %d\n", status);
             exit(ERROR_CREATE_THREAD);
         }
         iter += eps;
-        if (thread[modsum(num, threads_max)] != 0) {
-            status = pthread_join(thread[modsum(num, threads_max)], (void**)&status_addr);
+        help_num = modsum(help_num, threads_max);
+
+        if (thread[help_num] != 0) {
+            status = pthread_join(thread[help_num], (void**)&status_addr);
             if (status != SUCCESS) {
                 fprintf(stdout, "main error: can't join thread, status = %d\n", status);
                 exit(ERROR_JOIN_THREAD);
             }
-            pthread_detach(thread[modsum(num, threads_max)]);
-            thread[modsum(num, threads_max)] = 0;
+            pthread_detach(thread[help_num]);
+            thread[help_num] = 0;
+            // printf("f(%.8lf) = %.16lf\n", arguments[modsum(num, threads_max)].X, arguments[modsum(num, threads_max)].res);
+            printf("f(%.8lf) = %.16lf\n", arguments[help_num].X, *arguments[help_num].res);
         }
-        // if (num >= threads_max) {
-        //     status = pthread_join(thread[num - threads_max], (void**)&status_addr);
-        //     if (status != SUCCESS) {
-        //         fprintf(stdout, "main error: can't join thread, status = %d\n", status);
-        //         exit(ERROR_JOIN_THREAD);
-        //     }
-        //     pthread_detach(thread[num - threads_max]);
-        //     thread[num - threads_max] = 0;
-        // }
+        num++;
     }
 
-    // if (n > threads_max)
-    //     for (int i = n - 1; n - i < threads_max; --i) {
-    //         status = pthread_join(thread[i], (void**)&status_addr);
-    //         if (status != SUCCESS) {
-    //             printf("main error: can't join thread, status = %d\n", status);
-    //             exit(ERROR_JOIN_THREAD);
-    //         }
-    //         pthread_detach(thread[i]);
-    //     }
-    // else
-    //     for (int i = 0; i < n; ++i) {
-    //         status = pthread_join(thread[i], (void**)&status_addr);
-    //         if (status != SUCCESS) {
-    //             printf("main error: can't join thread, status = %d\n", status);
-    //             exit(ERROR_JOIN_THREAD);
-    //         }
-    //         pthread_detach(thread[i]);
-    //     }
+    for (int i = num; i != num - 1; ) {
+        i = modsum(i,threads_max);
+        if (thread[i] != 0) {
+            status = pthread_join(thread[i], (void**)&status_addr);
+            if (status != SUCCESS) {
+                fprintf(stdout, "main error: can't join thread, status = %d\n", status);
+                exit(ERROR_JOIN_THREAD);
+            }
+            pthread_detach(thread[i]);
+            printf("f(%.8lf) = %.16lf\n", arguments[i].X, *arguments[i].res);
+            // printf("f(%.8lf) = %.16lf\n", left, res[i]);
 
-    for (int i = 0; i < n; ++i) {
-        printf("f(%.8lf) = %.16lf\n", left, res[i]);
-        left += eps;
+            // num += 1;
+            // i =
+        }
     }
+
+    // for (int i = 0; i < n; ++i) {
+    //     printf("f(%.8lf) = %.16lf\n", left, res[i]);
+    //     left += eps;
+    // }
 
     free(res);
     free(arguments);
