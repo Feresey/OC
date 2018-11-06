@@ -47,7 +47,7 @@ int main(int argc, char** argv)
     int status, n;
     int* status_addr;
     double left, right;
-    int threads_max = 4;
+    int threads_max = 5;
     double* res;
     char segment[sizeof(double) * 2 + 1];
     if (argc == 2) {
@@ -93,14 +93,11 @@ int main(int argc, char** argv)
             }
             pthread_detach(thread[help_num]);
             thread[help_num] = 0;
-            // printf("f(%.8lf) = %.16lf\n", arguments[modsum(num, threads_max)].X, arguments[modsum(num, threads_max)].res);
-            printf("f(%.8lf) = %.16lf\n", arguments[help_num].X, *arguments[help_num].res);
         }
         num++;
     }
 
-    for (int i = num; i != num - 1; ) {
-        i = modsum(i,threads_max);
+    for (int i = 0; i < threads_max; ++i) {
         if (thread[i] != 0) {
             status = pthread_join(thread[i], (void**)&status_addr);
             if (status != SUCCESS) {
@@ -108,18 +105,13 @@ int main(int argc, char** argv)
                 exit(ERROR_JOIN_THREAD);
             }
             pthread_detach(thread[i]);
-            printf("f(%.8lf) = %.16lf\n", arguments[i].X, *arguments[i].res);
-            // printf("f(%.8lf) = %.16lf\n", left, res[i]);
-
-            // num += 1;
-            // i =
         }
     }
 
-    // for (int i = 0; i < n; ++i) {
-    //     printf("f(%.8lf) = %.16lf\n", left, res[i]);
-    //     left += eps;
-    // }
+    for (int i = 0; i < n; ++i) {
+        printf("f(%.8lf) = %.16lf\n", left, res[i]);
+        left += eps;
+    }
 
     free(res);
     free(arguments);
