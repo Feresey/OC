@@ -1,0 +1,131 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\hfuzz=10000pt
+\vbadness10000
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №\,1 по курсу :\\ Операционные системы}
+
+Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Условие}
+
+%Описание задачи: 
+\begin{itemize}
+    \item Постановка задачи:\subitem Составить и отладить программу на языке Си, осуществляющую работу с процессами и взаимодействие между ними в операционной системе Linux. В результате работы программа (основной процесс) должен создать для решение задачи один или несколько дочерних процессов. Взаимодействие между процессами осуществляется через системные сигналы/события и/или каналы (pipe).
+    Необходимо обрабатывать системные ошибки, которые могут возникнуть в результате работы. 
+    
+    \item Вариант задания  \subitem На вход программе подаётся команда интерпретатора команд и имя файла. Программа должна перенаправить стандартный ввод команды с этого файла и вывести результат команды в стандартный выходной поток. Использование операций $write$ и $printf$ запрещено.
+\end{itemize}
+
+\subsection*{Метод решения}
+
+Суть программы заключается в переопределении файлового дескриптора для stdio и вызова команды с помощью exec.
+
+Логично создавать для вызова exec отдельный процесс, так как эта функция является системным вызовом и замещает собой породивший её процесс.
+\\
+Для переопределения дескриптора использовалась функция:
+
+\lstinline freopen(file, "r", stdin);
+
+Где $file$ --- это имя файла, подающееся на вход вызываемой команде.\\
+Вызов команды интерпретатора осуществляется функцией:
+% \\    \smallbreak 
+\lstinline execlp(command, command, NULL);
+
+
+Где $command$ --- это имя команды интерпретатора.
+
+\subsection*{Описание программы}
+
+\begin{lstlisting}[escapechar=|]
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
+
+int main()
+{
+    pid_t pid;
+    int rv;
+    char command[100];
+    char file[100];
+    
+    switch (pid = fork()){
+        case -1:
+            perror("fork"); // |произошла ошибка|
+            exit(1);        //| выход из родительского процесса|
+        case 0: //| Потомок|
+            scanf("%s\n%s", command, file);
+            freopen(file, "r", stdin);
+            if (errno){
+                perror("File ERROR");
+                exit(errno);
+    }
+    
+    rv = execlp(command, command, NULL);
+    if (rv)
+    perror("Exec ERROR");
+    _exit(rv);
+    default: |// Родитель|
+    waitpid(pid, &rv, 0);
+    exit(WEXITSTATUS(rv));
+    }
+}
+    
+\end{lstlisting}
+%\newpage
+%\lstinputlisting{../../lab0/main.c}
+%\includeonly{"../../lab02/main.c"}
+%\include{../../lab02/main.c}
+
+\subsection*{Дневник отладки}  
+
+Для начала я освежил \sout{отсутствующие} знания по созданию процессов и связи между ними.
+
+Затем производил эксперименты с функцией $exec$ и её производными.
+В процессе изучения я понял, что путь для программы необходимо указывать относительно (в случае если команда не содержится в $/usr/bin$), и относительным $./path/to/file$ если она не лежит в $/usr/bin$.
+
+\subsection*{Недочёты}
+
+Задача данной лабораторной заключается именно в получении базовых знаний работы с процессами и системными вызовами. Практической необходимости создания нескольких процессов по моему варианту задания не требуется (за меня всё сделает $exec$)
+
+\subsection*{Выводы}
+
+Вызов $fork$ дублирует породивший его процесс со всеми его переменными, файловыми дескрипторами, приоритетами процесса, рабочий и корневой каталоги, и сегментами выделенной памяти.
+
+Ребёнок {\bf не} наследует:
+\begin{itemize}
+    \item идентификатора процесса (PID, PPID);
+    \item израсходованного времени ЦП (оно обнуляется);
+    \item сигналов процесса-родителя, требующих ответа;
+    \item блокированных файлов (record locking).
+\end{itemize}
+\end{document}
+
