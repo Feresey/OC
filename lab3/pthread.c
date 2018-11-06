@@ -10,8 +10,8 @@
 #define modsum(X, Y) (X + 1) % Y
 
 typedef struct {
-    double X;
     double* res;
+    double X;
 } arg_t;
 
 void* F(void* args)
@@ -66,17 +66,18 @@ int main(int argc, char** argv)
     double eps = (right - left) / (n - 1);
     double iter = left;
     int num = 0;
+    int help_num = 0;
 
     thread = (pthread_t*)malloc(sizeof(pthread_t) * threads_max);
     arguments = (arg_t*)malloc(sizeof(arg_t) * threads_max);
-    res = (double*)malloc(sizeof(double) * n);
+    res = (double*)malloc(sizeof(double) * threads_max);
 
+    double prev = 1;
     while (num < n) {
-        // help_num = (help_num + 1) % threads_max;
-        int help_num = modsum(num, threads_max);
+        help_num = modsum(num, threads_max);
 
         arguments[help_num].X = iter;
-        arguments[help_num].res = res + num;
+        arguments[help_num].res = res + help_num;
         status = pthread_create(thread + help_num, NULL, &F, (void*)(arguments + help_num));
         if (status != SUCCESS) {
             printf("main error: can't create thread, status = %d\n", status);
@@ -84,6 +85,7 @@ int main(int argc, char** argv)
         }
         iter += eps;
         help_num = modsum(help_num, threads_max);
+        // printf("help_num: %d\n", help_num);
 
         if (thread[help_num] != 0) {
             status = pthread_join(thread[help_num], (void**)&status_addr);
@@ -93,14 +95,17 @@ int main(int argc, char** argv)
             }
             pthread_detach(thread[help_num]);
             thread[help_num] = 0;
-            // printf("f(%.8lf) = %.16lf\n", arguments[modsum(num, threads_max)].X, arguments[modsum(num, threads_max)].res);
-            printf("f(%.8lf) = %.16lf\n", arguments[help_num].X, *arguments[help_num].res);
+            printf("f(%.8lf) = %.28lf\n", arguments[help_num].X, *arguments[help_num].res * prev);
+            prev = res[help_num] * prev;
         }
         num++;
     }
+    int i = 0;
+    while (1) {
+        for (; thread[i] != 0; ++i)
+            ;
+        i = modsum(i, threads_max);
 
-    for (int i = num; i != num - 1; ) {
-        i = modsum(i,threads_max);
         if (thread[i] != 0) {
             status = pthread_join(thread[i], (void**)&status_addr);
             if (status != SUCCESS) {
@@ -108,12 +113,13 @@ int main(int argc, char** argv)
                 exit(ERROR_JOIN_THREAD);
             }
             pthread_detach(thread[i]);
-            printf("f(%.8lf) = %.16lf\n", arguments[i].X, *arguments[i].res);
-            // printf("f(%.8lf) = %.16lf\n", left, res[i]);
+            thread[i] = 0;
+            printf("f(%.8lf) = %.28lf\n", arguments[i].X, *arguments[i].res * prev);
 
-            // num += 1;
-            // i =
-        }
+            prev = res[help_num] * prev;
+
+        } else
+            break;
     }
 
     // for (int i = 0; i < n; ++i) {
@@ -121,7 +127,7 @@ int main(int argc, char** argv)
     //     left += eps;
     // }
 
-    free(res);
+    // free(res);
     free(arguments);
     free(thread);
 }
