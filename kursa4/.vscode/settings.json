@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "*.cpp": "cpp",
+        "stdlib.h": "c",
+        "ioctl.h": "c",
+        "czmq.h": "c",
+        "czmq_library.h": "c",
+        "zsock.h": "c",
+        "string.h": "c",
+        "game.h": "c",
+        "types.h": "c",
+        "time.h": "c",
+        "assert.h": "c",
+        "sched.h": "c",
+        "flcliapi.h": "c",
+        "unistd.h": "c"
+    },
+    "C_Cpp.intelliSenseEngineFallback": "Enabled"
+}

@@ -1,0 +1,6 @@
+www.viva64.com/en/w	1	err	Help: The documentation for all analyzer warnings is available here: https://www.viva64.com/en/w/.
+/home/lol/Desktop/OLD/OC/kursa4/game.h	12	warn	V677 Custom declaration of a standard 'uint' type. The declaration from system header files should be used instead.
+/home/lol/Desktop/OLD/OC/kursa4/game.c	37	warn	V522 There might be dereferencing of a potential null pointer 'res'. Check lines: 37, 35.
+/home/lol/Desktop/OLD/OC/kursa4/game.c	39	warn	V522 There might be dereferencing of a potential null pointer 'res[i]'. Check lines: 39, 37.
+/home/lol/Desktop/OLD/OC/kursa4/server.c	118	warn	V522 There might be dereferencing of a potential null pointer 'threads'. Check lines: 118, 116.
+/home/lol/Desktop/OLD/OC/kursa4/server.c	120	warn	V522 There might be dereferencing of a potential null pointer 'games'. Check lines: 120, 115.

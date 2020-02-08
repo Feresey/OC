@@ -1,0 +1,342 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №0 по курсу:\\ Операционные системы}
+
+\noindent Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Цель работы}
+
+Получение навыков использования утилиты strace.
+
+
+
+\subsection*{Задание}
+
+
+{\bf Часть 1.} Написать собственную программу, которая демонстрирует работу с различными вызовами (8-15) операционной системы. Произвести диагностику
+работы написанной программы с помощью утилит ОС, изучив основные принципы
+применения используемых утилит.
+
+{\bf Часть 2. }Выбрать стороннее программное обеспечение. Произвести диагностику ПО.
+Выявить ключевые особенности работы. Выявить предполагаемые ключевые системные вызовы, которые используются в стороннем программном обеспечении.
+
+\subsection*{Информация}
+
+Системные вызовы -- один из уровней абстракции, предоставляемый пользовательским программам. Само управление ресурсами проходит незаметно для пользователя и осуществляется в автоматическом режиме. Любой однопроцессорный компьютер одномоментно может выполнить только одну команду. Когда процесс выполняет
+пользовательскую программу в режиме пользователя и нуждается в некоторой
+услуге ОС, он должен выполнить команду системного прерывания, чтобы передать
+управление ОС. Затем ОС по параметрам вызова определяет, что именно требуется
+вызывающему процессу. После этого она обрабатывает системный вызов и возвращает управление той команде, которая следует за системным вызовом. В некотором
+смысле выполнение системного вызова похоже на выполнение особой разновидности
+вызова процедуры, с той лишь разницей, что системные вызовы входят в ядро, а
+процедурные -- нет.
+Использованные системные вызовы:
+
+
+\subsection*{Использованные системные вызовы}
+
+\begin{enumerate}
+\item \lstinline[language=C]|int creat(const char *pathname, modet mode);| -- создает и открывает
+файловый дескриптор в соответствии с флагами открытия.
+\item \lstinline[language=C]|int open(const char *path, int oflag, ...);| -- открывает файловый дескриптор: первый аргумент -- путь до файла, второй -- флаги открытия. */
+\item \lstinline[language=C]|int read(int fd, void *buffer, int nbyte);| -- читает nbyte из файлового дескриптора fd в буффер buffer.
+\item \lstinline[language=C]|int write(int fd, void *buffer, int nbyte);| -- записывает количество байтов
+в 3 аргументе из буфера в файл с дескриптором fd, возвращает количество
+записанных байтов или -1 в случае ошибки.
+\item \lstinline[language=C]|int close(int fd);| -- закрывает файловый дескриптор.
+\item \lstinline[language=C]|int fsync(int fd);| -- синхронизирует состояние файла в памяти с его состоянием
+на диске
+\item \lstinline[language=C]|int truncate(int fd, offt lenght);| -- устанавливает длину файла с файловым
+дескриптором fd в lenght байт. Если файл до этой операции был длиннее, то
+отсеченные данные теряются. Если файл был короче, то он увеличивается, а
+добавленная часть заполняется нулевыми байтами.
+\item \lstinline[language=C]|pidt fork(void);| -- создает дочерний процесс. Если возвращает 0, то созданный
+процесс -- ребенок, если >0, то -- родитель.
+\item  \lstinline[language=C]|pidt wait(int *status);| -- приостанавливает выполнение текущего процесса
+до тех пор, пока дочерний процесс не завершится, или до появления сигнала, который либо завершает текущий процесс, либо требует вызвать функцию-обработчик.
+\item \lstinline[language=C]|offt lseek(int fd, offt offset, int whence);| -- устанавливает смещение для файлового дескриптора в значение аргумента offset в соответствии с директивой
+whence, которая может принимать одно из следующих значений: SEEKSET(смещение устанавливается в offset байт от начала файла), SEEKCUR(смещение устанавливается как текущее смещение плюс offset байт), SEEKEND(смещение устанавливается как размер файла плюс offset байт).
+\item \lstinline[language=C]|int execl(const char *path, const char *arg);| -- передаем аргументы в командную строку (когда их количество известно)
+\item \lstinline[language=C]|void exit(int status);| --выходит из процесса с заданным статусом.
+
+\end{enumerate}
+
+
+\subsection*{Исходный код}
+
+{
+\footnotesize
+Лабораторная работа 2:
+\lstinputlisting[language=C,escapechar=~]{../../lab2/main.c}
+
+Лабораторная работа 3:
+\lstinputlisting[language=C,escapechar=~]{../../lab3/main.c}
+
+Лабораторная работа 4:
+\lstinputlisting[language=C,escapechar=~]{../../lab04/main.c}
+
+Лабораторная работа 5:
+\lstinputlisting[language=C,escapechar=~]{../../lab05/main.c}
+\subsection*{Диагностика программ с помощью strace}
+
+Лабораторная работа 2:
+{
+\scriptsize
+
+\begin{lstlisting}[escapechar=!]
+execve("./main", ["./main"], 0x7fff97f0d4a0 /* 48 vars */) = 0
+./lab01 10
+10.12.63	4d4691e7cfebe79b9722e274750b4222b2470c5433e8a15dbaac06b3
+0.12.83	4ea299d7ad460e7b355e60fb04b2cd99ff36b36585c6d2d6eaf87f
+3.10.125	42efe7b30ef5777e4cd4b1b927f672
+15.12.246	4049b4392bc0998998b375
+10.10.422	80c751cea9992cd8560624ca306ebb98
+11.7.475	59ce7e1d0247467518
+6.0.499	1c6b85f4fce7
+29.9.1096	a4c44cd3bfb6438db30d88e570bf3d87c942edcae11de5f538de12975fd385
+22.7.1321	
+2.8.1994	e037ae90587681c36ad18b10028d4b6359
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=22281, si_uid=1000, 
+si_status=0, si_utime=0, si_stime=0} ---
++++ exited with 0 +++
+\end{lstlisting}
+}
+Лабораторная работа 3:
+{
+\scriptsize
+
+\begin{lstlisting}[escapechar=!]
+Max count of threads: 5
+Number of points: 10
+Segment: [1,10]
+
+clone(child_stack=0x7f319afbcfb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f319afbd9d0, tls=0x7f319afbd700, child_tidptr=0x7f319afbd9d0) = 27737
+clone(child_stack=0x7f319a7bbfb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f319a7bc9d0, tls=0x7f319a7bc700, child_tidptr=0x7f319a7bc9d0) = 27738
+clone(child_stack=0x7f3199fbafb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7f3199fbb9d0, tls=0x7f3199fbb700, child_tidptr=0x7f3199fbb9d0) = 27739
+clone(child_stack=0x7f31997b9fb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7f31997ba9d0, tls=0x7f31997ba700, child_tidptr=0x7f31997ba9d0) = 27740
+clone(child_stack=0x7f3198fb8fb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f3198fb99d0, tls=0x7f3198fb9700, child_tidptr=0x7f3198fb99d0) = 27741
+f(1.0000000000) = 1.38177329067603626989
+clone(child_stack=0x7f319afbcfb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7f319afbd9d0, tls=0x7f319afbd700, child_tidptr=0x7f319afbd9d0) = 27742
+f(2.0000000000) = 0.68142231392800700629
+clone(child_stack=0x7f319a7bbfb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f319a7bc9d0, tls=0x7f319a7bc700, child_tidptr=0x7f319a7bc9d0) = 27743
+f(3.0000000000) = -0.57844065537114641717
+clone(child_stack=0x7f3199fbafb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f3199fbb9d0, tls=0x7f3199fbb700, child_tidptr=0x7f3199fbb9d0) = 27744
+f(4.0000000000) = 0.81585937580395384572
+clone(child_stack=0x7f31997b9fb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f31997ba9d0, tls=0x7f31997ba700, child_tidptr=0x7f31997ba9d0) = 27745
+f(5.0000000000) = -0.55091890659871411984
+clone(child_stack=0x7f3198fb8fb0,
+ flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID, 
+parent_tidptr=0x7f3198fb99d0, tls=0x7f3198fb9700, child_tidptr=0x7f3198fb99d0) = 27746
+f(6.0000000000) = -0.37504068371550630667
+f(7.0000000000) = -0.52914072009899415505
+f(8.0000000000) = -0.44651974239025671309
+f(9.0000000000) = 0.22281860995630112243
+f(10.0000000000) = -0.30817877947797533977
++++ exited with 0 +++
+\end{lstlisting}
+}Лабораторная работа 4:
+{
+\scriptsize
+
+\begin{lstlisting}[escapechar=!]
+execve("./all", ["./all"], 0x7ffe80b64090 /* 48 vars */) = 0
+mmap(NULL, 329878, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f3a9f70b000
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f3a9f709000
+mmap(NULL, 39416, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f3a9f6ff000
+mmap(0x7f3a9f701000, 16384, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE,
+ 3, 0x2000) = 0x7f3a9f701000
+mmap(0x7f3a9f705000, 8192, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x6000) 
+= 0x7f3a9f705000
+mmap(0x7f3a9f707000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE,
+ 3, 0x7000) = 0x7f3a9f707000
+mmap(NULL, 1848896, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f3a9f53b000
+mmap(0x7f3a9f55d000, 1355776, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE,
+ 3, 0x22000) = 0x7f3a9f55d000
+mmap(0x7f3a9f6a8000, 311296, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x16d000)
+ = 0x7f3a9f6a8000
+mmap(0x7f3a9f6f5000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1b9000) = 0x7f3a9f6f5000
+mmap(0x7f3a9f6fb000, 13888, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1,
+ 0) = 0x7f3a9f6fb000
+mmap(NULL, 131528, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f3a9f51a000
+mmap(0x7f3a9f520000, 61440, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x6000) = 0x7f3a9f520000
+mmap(0x7f3a9f52f000, 24576, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x15000) 
+= 0x7f3a9f52f000
+mmap(0x7f3a9f535000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1a000) = 0x7f3a9f535000
+mmap(0x7f3a9f537000, 12744, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS,
+ -1, 0) = 0x7f3a9f537000
+mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f3a9f517000
+mmap(NULL, 4194306, PROT_READ|PROT_WRITE, MAP_SHARED, 3, 0) = 0x7f3a9f116000
+./lab01 10
+10.12.63	4d4691e7cfebe79b9722e274750b4222b2470c5433e8a15dbaac06b3
+0.12.83	4ea299d7ad460e7b355e60fb04b2cd99ff36b36585c6d2d6eaf87f
+3.10.125	42efe7b30ef5777e4cd4b1b927f672
+15.12.246	4049b4392bc0998998b375
+10.10.422	80c751cea9992cd8560624ca306ebb98
+11.7.475	59ce7e1d0247467518
+6.0.499	1c6b85f4fce7
+29.9.1096	a4c44cd3bfb6438db30d88e570bf3d87c942edcae11de5f538de12975fd385
+22.7.1321	
+2.8.1994	e037ae90587681c36ad18b10028d4b6359
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=32458, si_uid=1000,
+ si_status=0, si_utime=0, si_stime=0} ---
++++ exited with 0 +++
+
+\end{lstlisting}
+}
+Лабораторная работа 5:
+{
+\scriptsize
+
+\begin{lstlisting}[escapechar=!]
+execve("./load", ["./load"], 0x7ffef7db4210 /* 48 vars */) = 0
+brk(NULL)                               = 0x55a975dca000
+arch_prctl(0x3001 /* ARCH_??? */, 0x7fffab2dc9b0) = -1 EINVAL (!Недопустимый аргумент!)
+access("/etc/ld.so.preload", R_OK)      = -1 ENOENT (!Нет такого файла или каталога!)
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=329878, ...}) = 0
+mmap(NULL, 329878, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f0ecea6d000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libdl.so.2", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0 \20\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=14240, ...}) = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f0ecea6b000
+mmap(NULL, 16528, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f0ecea66000
+mmap(0x7f0ecea67000, 4096, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE,
+ 3, 0x1000) = 0x7f0ecea67000
+mmap(0x7f0ecea68000, 4096, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000) 
+= 0x7f0ecea68000
+mmap(0x7f0ecea69000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE,
+ 3, 0x2000) = 0x7f0ecea69000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0000C\2\0\0\0\0\0"..., 832) = 832
+lseek(3, 792, SEEK_SET)                 = 792
+read(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\201\336\t\36\251c\324\233E\371SoK\5H\334"..., 
+68) = 68
+fstat(3, {st_mode=S_IFREG|0755, st_size=2136840, ...}) = 0
+lseek(3, 792, SEEK_SET)                 = 792
+read(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\201\336\t\36\251c\324\233E\371SoK\5H\334"...,
+ 68) = 68
+lseek(3, 864, SEEK_SET)                 = 864
+read(3, "\4\0\0\0\20\0\0\0\5\0\0\0GNU\0\2\0\0\300\4\0\0\0\3\0\0\0\0\0\0\0", 32) = 32
+mmap(NULL, 1848896, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f0ece8a2000
+mprotect(0x7f0ece8c4000, 1671168, PROT_NONE) = 0
+mmap(0x7f0ece8c4000, 1355776, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 
+3, 0x22000) = 0x7f0ece8c4000
+mmap(0x7f0ecea0f000, 311296, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x16d000)
+ = 0x7f0ecea0f000
+mmap(0x7f0ecea5c000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1b9000) = 0x7f0ecea5c000
+mmap(0x7f0ecea62000, 13888, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1,
+ 0) = 0x7f0ecea62000
+close(3)                                = 0
+mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f0ece89f000
+arch_prctl(ARCH_SET_FS, 0x7f0ece89f740) = 0
+mprotect(0x7f0ecea5c000, 16384, PROT_READ) = 0
+mprotect(0x7f0ecea69000, 4096, PROT_READ) = 0
+mprotect(0x55a9744d2000, 4096, PROT_READ) = 0
+mprotect(0x7f0eceae7000, 4096, PROT_READ) = 0
+munmap(0x7f0ecea6d000, 329878)          = 0
+brk(NULL)                               = 0x55a975dca000
+brk(0x55a975deb000)                     = 0x55a975deb000
+openat(AT_FDCWD, "./libdynamic.so", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0p\20\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=50360, ...}) = 0
+getcwd("/home/lol/Desktop/OLD/OC/lab05/dirty", 128) = 37
+mmap(NULL, 16456, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f0eceab9000
+mmap(0x7f0eceaba000, 4096, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 
+0x1000) = 0x7f0eceaba000
+
+mmap(0x7f0eceabb000, 4096, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000)
+ = 0x7f0eceabb000
+mmap(0x7f0eceabc000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 
+3, 0x2000) = 0x7f0eceabc000
+close(3)                                = 0
+mprotect(0x7f0eceabc000, 4096, PROT_READ) = 0
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0x1), ...}) = 0
+write(1, "-1.000000 1.000000 1.000000 4.00"..., 56-1.000000 1.000000 1.000000 4.000000
+ 2.000000 21.992818
+) = 56
+munmap(0x7f0eceab9000, 16456)           = 0
+exit_group(0)                           = ?
++++ exited with 0 +++
+\end{lstlisting}
+}
+\subsection*{Выводы}
+
+Изучение системных вызовов позволило по-настоящему понять, что делает операционная система в момент их исполнения. Важно правильно обрабатывать системные
+вызовы, это поможет избежать ошибок при некорректном исполнении программы и
+поможет в ее отладке. Идея такого интерфейса довольно проста: получил команду --
+выполняй или отчитывайся, почему не смог. Система ЭВМ-Человек, словно ее живой аналог Человек-Человек, способна достичь высокой производительности в ходе
+диалога: решения принимаются по ходу дела, а не планируются за сотню ходов. Если
+что-то пошло не так, при правильной обработке ошибок мы сразу получим сообщение о ней в этом месте программы.
+
+Утилиты диагностики позволяют быстро выяснить, как программа взаимодействует
+с операционной системой. Это происходит путем мониторинга системных вызовов
+и сигналов. Становится понятнее работа собственного и стороннего программного
+обеспечения. Можно узнать, что делают конкретные системные вызовы, подсчитать
+их, узнать время их работы и ошибки при их использовании, если они есть, отследить запущенные процессы.
+В случае, если у нас нет доступа к исходному коду, мы можем воспользоваться этими утилитами и узнать, что действительно происходит в программе. Отчаявшийся
+пользователь может использовать утилиты диагностики для отладки своего кода.
+Они позволяют увидеть не только, где программа ``упала'' но и почему это произошло. Для эффективного использования трассировки необходимо знать системные
+вызовы и понимать их работу. Использование такого инструмента как strace жизненно необходимо любому уважающему себя программисту.
+
+\end{document}
+

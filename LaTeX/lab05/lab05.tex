@@ -1,0 +1,267 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №\,5 по курсу :\\ Операционные системы}
+
+\noindent Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Цель работы}
+
+\noindent Целью является приобретение практических навыков в:
+
+\begin{itemize}
+    \item Создание динамических библиотек
+    \item Создание программ, которые используют функции динамических библиотек
+\end{itemize}
+
+\subsection*{Задание}
+
+\noindent Требуется создать динамическую библиотеку, которая реализует определенный функционал. Далее использовать данную библиотеку 2-мя способами:
+
+\begin{enumerate}
+    \item Во время компиляции (на этапе «линковки»/linking)
+    \item Во время исполнения программы, подгрузив библиотеку в память с помощью системных вызовов
+\end{enumerate}
+
+\noindent В конечном итоге, программа должна состоять из следующих частей:
+
+\begin{itemize}
+    \item Динамическая библиотека, реализующая заданных вариантом интерфейс;
+    \item Тестовая программа, которая используют библиотеку, используя знания полученные на этапе компиляции;
+    \item Тестовая программа, которая использует библиотеку, используя только местоположение динамической библиотеки и ее интерфейс.
+\end{itemize}
+
+\noindent Структура данных, с которой должна обеспечивать работу библиотека:
+
+ {\bf Работа с деком}
+
+\noindent Тип данных, используемый структурой:
+
+{\bf Вещественный 64-битный}
+
+\subsection*{Информация}
+
+Динамическая библиотека - по своей сути обычный объектный файл, который может присоединяется к другой программе в два этапа. Первый этап, это естественно этап компиляции. На этом этапе линковщик встраивает в программу описания требуемых функций и переменных, которые присутствуют в библиотеке. Сами объектные файлы из библиотеки не присоединяются к программе. Присоединение этих объектных файлов осуществляет системный динамический загрузчик во время запуска программы. Загрузчик проверяет все библиотеки прилинкованные с программе на наличие требуемых объектных файлов, затем загружает их в память и присоединяет их в копии запущенной программы, находящейся в памяти. Это позволяет не забивать память лишними одинаковыми частями программ (наиболее яркий пример -- $libc$, с которой пролинкованны практически все исполняемые файлы).
+
+
+С созданием библиотеки из исходного кода могут возникнуть некоторые проблемы, а конкретно переход между функциями с помощью операции ассемблера -- $goto$. Так как обычные объектные файлы используют абсолютную адресацию, нужно перенастроить их на относительную, с помощью ключа \lstinline|-fPIC| ({\bf Position Independent Code})
+
+Ну и чтобы получить саму динамическую библиотеку надо указать ключ \lstinline|-shared|.
+
+\subsubsection*{Линковка с динамической библиотекой:}
+
+Для использования полученной библиотеки в других программах нужно указать при линковке флаг \lstinline|-f%name%|. Важно указать именно название библиотеки, а не её имя. То есть если файл называется ``libdeck.so'', то название самой библиотеки -- ``deck'' и подключать её надо с помощью ключа \lstinline|-ldeck|.
+
+Но если сразу запустить полученный исполняемый файл, то появится ошибка:
+
+\begin{lstlisting}
+./run: error in loading shared libraries: libdeck.so: cannot open 
+shared object file: No such file or directory
+\end{lstlisting}
+
+Это происходит потому, что система не знает где ей искать файл с таким именем, она пытается найти её по заранее определённым системным путям (определены в файле ``/etc/ld.so.conf'')
+
+Также в дополнение к этим путям можно использовать переменную окружения: 
+
+\begin{lstlisting}[language=bash]
+export LD_LIBRARY_PATH=.
+\end{lstlisting}
+
+\subsubsection*{Загрузка библиотеки в память с помощью системных вызовов:}
+
+Использовать динамические библиотеки можно не только в начале загрузки, но и в процессе самой работы программы. Программа сама может вызывать любые функции из библиотеки, когда это необходимо. Это обеспечивает библиотека dl, которая позволяет линковать библиотеки ``на лету''. Она управляет загрузкой динамических библиотек, вызовом функций из них и выгрузкой после конца работы.
+
+Для использования функций работы с динамическими библиотеками необходимо подключить заголовочный файл: 
+\lstinline|#include <dlfcn.c>|
+
+Чтобы можно было извлечь какие-либо функции из библиотеки сначала необходимо их загрузить. Этим занимается функция ``dlopen'':
+\begin{lstlisting}[language=c]
+void *dlopen (const char *filename, int flag);
+\end{lstlisting}
+
+За загрузку самих функций из библиотеки отвечает функция
+
+\begin{lstlisting}[language=c]
+void *dlsym(void *handle, char *symbol);
+\end{lstlisting}
+
+Для этой функции требуется адрес загруженной библиотеки handle, полученный при открытии функцией dlopen(). Требуемая функция или переменная задается своим именем в переменной symbol.
+\newline
+
+После окончания работы с библиотекой её следует закрыть:
+\begin{lstlisting}[language=c]
+dlclose(void *handle);
+\end{lstlisting}
+
+\subsection*{Описание программы}
+
+{ \scriptsize
+\begin{lstlisting}[language=c]
+#include "deck.h"
+#include <stdio.h>
+
+#ifdef LIBLOAD
+#include <dlfcn.h>
+#endif
+
+int main()
+{
+#ifdef LIBLOAD
+    void* library = dlopen("./libdynamic.so", RTLD_LAZY);
+    if (!library) {
+        fprintf(stderr, "dlopen() error: %s\n", dlerror());
+        return 1;
+    }
+    
+    Deck*  (*init_deck) ();
+    int    (*push_back) (Deck*, double);
+    int    (*push_start)(Deck*, double);
+    double (*pop_back)  (Deck*);
+    double (*pop_start) (Deck*);
+    int    (*clear_deck)(Deck*);
+    int    (*empty_deck)(Deck*);
+    
+    *(void**)(&init_deck)  = dlsym(library, "init");
+    *(void**)(&push_back)  = dlsym(library, "pushBack");
+    *(void**)(&push_start) = dlsym(library, "pushStart");
+    *(void**)(&pop_back)   = dlsym(library, "popBack");
+    *(void**)(&pop_start)  = dlsym(library, "popStart");
+    *(void**)(&clear_deck) = dlsym(library, "clear");
+    *(void**)(&empty_deck) = dlsym(library, "empty");
+    
+#define init      init_deck
+#define pushBack  push_back
+#define pushStart push_start
+#define popBack   pop_back
+#define popStart  pop_start
+#define clear     clear_deck
+#define empty     empty_deck
+#endif // LIBLOAD
+    
+    Deck* deck = init();
+    
+    pushBack (deck, 2.0);
+    pushStart(deck, 1.0);
+    pushBack (deck, 4.0);
+    pushStart(deck, -1.0);
+    pushBack (deck, 1.0);
+    
+    printf("%lf ", popStart(deck));
+    printf("%lf ", popBack (deck));
+    printf("%lf ", popStart(deck));
+    printf("%lf ", popBack (deck));
+    printf("%lf ", popStart(deck));
+    
+    pushStart(deck, 19.992818);
+    pushBack (deck, 20.992818);
+    pushStart(deck, 21.992818);
+    pushBack (deck, 22.992818);
+    printf("%lf\n", popStart(deck));
+    
+    clear(deck);
+    free(deck);
+#ifdef LIBLOAD
+    dlclose(library);
+#endif
+    return 0;
+}
+
+\end{lstlisting}}
+
+
+\subsection*{Работа программы}
+
+\noindent По заданию надо было сделать 2 разные программы, отличающиеся способом подключения функций: через слинкованные файлы и с помощью системных вызовов загрузки библиотек.
+
+\noindent С помощью директив препроцессора я смог уместить обе программы в одном файле.
+\newline
+
+\noindent Лог компиляции:
+{\scriptsize 
+\begin{lstlisting}[language=bash]
+gcc -Wall -Wextra -Wpedantic -W -g3 -c -fPIC -o deck.o deck.c
+gcc -Wall -Wextra -Wpedantic -W -g3 -c -o main.o main.c
+gcc -Wall -Wextra -Wpedantic -W -g3 -shared -fPIC -o libdynamic.so deck.o
+gcc -Wall -Wextra -Wpedantic -W -g3 -ldl -DLIBLOAD main.c -o load
+gcc -Wall -Wextra -Wpedantic -W -g3 -L. -ldynamic -o linked main.o
+\end{lstlisting}
+}
+
+\noindent То есть на выходе получились 2 файла (``linked'' и ``load'') и легко проверить их различие с помощью утилиты $ldd$:
+
+{\scriptsize 
+\begin{lstlisting}[language=bash]
+/home/Desktop/OC/lab05 $ ldd linked
+	linux-vdso.so.1 (0x00007ffdeab83000)
+	libdynamic.so => ./libdynamic.so (0x00007fd40a1dd000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x00007fd409fba000)
+	/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007fd40a1e9000)
+
+/home/Desktop/OC/lab05 $ ldd load
+	linux-vdso.so.1 (0x00007ffe5610e000)
+	libdl.so.2 => /usr/lib/libdl.so.2 (0x00007fb98e904000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x00007fb98e740000)
+	/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007fb98e96f000)
+\end{lstlisting}
+}
+
+\noindent И вывод $strace$ подтверждает это ещё раз:
+
+{\scriptsize 
+\begin{lstlisting}[escapechar=!]
+/home/Desktop/OC/lab05 $ strace -e trace=openat ./linked 
+openat(AT_FDCWD, "./libdynamic.so", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+-1.000000 1.000000 1.000000 4.000000 2.000000 21.992818
++++ exited with 0 +++
+
+/home/Desktop/OC/lab05 $ strace -e trace=openat ./load
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/usr/lib/libdl.so.2", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "./libdynamic.so", O_RDONLY|O_CLOEXEC) = 3
+-1.000000 1.000000 1.000000 4.000000 2.000000 21.992818
++++ exited with 0 +++
+\end{lstlisting}}
+
+
+\subsection*{Дневник отладки}  
+
+
+\subsection*{Выводы}
+
+
+
+В который раз были написаны интерфейс и реализация одного из часто используемых АТД, в моем случае дека. Никаких особых сложностей не возникло, всё заработало с первого раза и так, как надо. Не вызвала проблем и сборка динамической библиотеки. При первом запуске слинкованной программы естественно вылезла ошибка, так как я забыл про  \lstinline|export LD_LIBRARY_PATH=.|. Работа с подгружаемой в память библиотекой так же оказалась не слишком сложной (громоздкой и некрасивой да, но не сложной)
+
+Статическая линковка удобна тем, что собирает программу и рантайм в один файл. После запуска программы, реализация используемых функций ищется в сборке, таким образом, гарантируется переносимость программы. Как результат -- сборка несколько увеличивается в размерах. При динамической линковке мы получаем ``голую'' сборку без сторонних библиотек. Ее размер, безусловно, меньше, но при этом мы должны гарантировать, что на клиентской машине имеется библиотека, используемая в программе, и ее версия одинакова с той, которая была использована при сборке. В обоих способах есть минусы и плюсы, выбор зависит от необходимого результата.
+
+
+\end{document}
+

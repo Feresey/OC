@@ -1,0 +1,3 @@
+www.viva64.com/en/w	1	err	Help: The documentation for all analyzer warnings is available here: https://www.viva64.com/en/w/.
+/home/lol/Desktop/OLD/OC/lab06-7/bank.c	133	err	V575 The null pointer is passed into 'free' function. Inspect the first argument.
+/home/lol/Desktop/OLD/OC/lab06-7/server.c	124	warn	V614 Potentially uninitialized buffer 'info' used. Consider checking the first actual argument of the 'strlen' function.

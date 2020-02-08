@@ -1,0 +1,424 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №\,3 по курсу :\\ Операционные системы}
+
+Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Условие}
+
+%Описание задачи: 
+\begin{itemize}
+    \item Постановка задачи:\subitem Составить программу на языке Си, обрабатывающую данные в многопоточном режиме. При обработки использовать стандартные средства создания потоков операционной системы (Windows/Unix). При создании необходимо предусмотреть ключи, которые позволяли бы задать максимальное количество потоков, используемое программой. При возможности необходимо использовать максимальное количество возможных потоков. Ограничение потоков может быть задано или ключом запуска вашей программы, или алгоритмом.
+    Так же необходимо уметь продемонстрировать количество потоков, используемое вашей программой с помощью стандартных средств операционной системы.
+    
+    \item Вариант задания  \subitem Расчёт $n$ точек, заданных функцией. На вход подаётся количество точек и границы отрезка на котором производится расчёт функции. Функция $f(X_n) = (sin(X_n)+cos(X_n))* f(X_n-1), f(X_0) = sin(X_0)+cos(X_0)$. Необходимо, чтобы при выводе точки были выведены последовательно относительно $x$.
+\end{itemize}
+
+\subsection*{Метод решения}
+
+Логика программы основана на предположении, что вычисление $sin(x)+cos(x)$ для любых значений $x$ будут занимать примерно одинаковое время. 
+
+То есть, чтобы повысить производительность с помощью потоков, нужно дать функции вычисления аргументы (точку $x$ и адрес записи результата) и перейти к следующей итерации вычисления, не дожидаясь завершения функции. 
+
+\noindent
+Для реализации многопоточных вычислений были использованы следующие функции:
+
+\begin{lstlisting}[language=c]
+int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                   void *(*start_routine) (void *), void *arg);
+\end{lstlisting}
+(для создания нового потока)\\
+Аргумент pthread\_t *thread -- по этому адресу, в случае успешного создания потока записывается id потока \\
+Аргумент const pthread\_attr\_t *attr -- атрибуты потока. В случае если используются атрибуты по умолчанию, то можно передавать NULL\\
+Аргумент start\_routin -- это функция, которая будет выполняться в новом потоке.\\
+Аргумент *arg -- собственно входные данные, передающиеся функции как единственный аргумент (для передачи нескольких аргументов придётся использовать структуру)
+\begin{lstlisting}[language=c]
+int pthread_join(pthread_t thread, void **retval);
+\end{lstlisting}
+\noindent(ожидает завершения потока обозначенного $thread$.) \\
+При удачном завершении возвращает 0, ненулевое значение сигнализирует об ошибке.\\
+Возвращаемое значение функции записывается по указателю **retval (если он не NULL)
+\\
+
+\noindent
+Для передачи аргументов была использована следующая структура:
+\begin{lstlisting}[language=c]
+typedef struct {
+    double X;
+    double res;
+} arg_t;
+\end{lstlisting}
+
+Где $X$ -- это точка, для которой вычисляется значение $sin(x)+cos(x)$, а $res$ -- результат вычисленной функции (да, это не функция из условия, чтобы её вычислить, нужно домножить на результат, вычисленный на предыдущем шаге. Это действие происходит при завершении работы потока)
+
+\subsection*{Описание программы}
+
+{\scriptsize
+\begin{lstlisting}[escapechar=@,language=c]
+#include <malloc.h>
+#include <math.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define ERROR_CREATE_THREAD -11
+#define ERROR_JOIN_THREAD -12
+#define SUCCESS 0
+#define modsum(X) (X + 1) % threads_max
+
+typedef struct {
+    double X;
+    double res;
+} arg_t;
+
+void* F(void* args)
+{
+    arg_t* arg = (arg_t*)args;
+    arg->res = cos(arg->X) + sin(arg->X);
+    return SUCCESS;
+}
+
+int Parsing(char* str, double* left, double* right)
+{
+    int pos;
+    if (!str || *str != '[')
+        return 1;
+
+    for (pos = 1; str[pos] == '.' || str[pos] == '-' 
+         || (str[pos] != ',' && str[pos] != '\0'); ++pos);
+
+    if (str[pos] == '\0')
+        return 1;
+    else
+        str[pos] = '\0';
+
+    *left = atof(str + 1);
+    *right = atof(str + pos + 1);
+    return (*left < *right) ? 0 : 1;
+}
+
+int main(int argc, char** argv)
+{
+    pthread_t* thread;
+    arg_t* arguments;
+    int num = 0,
+        status = 0,
+        n = 0,
+        help_num = 0,
+        help_num_2 = 0,
+        threads_max = 5;
+    double prev = 1,
+           left = 0,
+           right = 0;
+    char segment[600];
+
+    if (argc == 2)
+        threads_max = atoi(argv[1]);
+    if (threads_max <= 0) {
+        printf("Wrong thread count!\n");
+        exit(1);
+    }
+
+    printf("Max count of threads: %d\n", threads_max);
+    printf("Number of points: ");
+    scanf("%d", &n);
+    printf("Segment: ");
+    scanf("%s", segment);
+    printf("\n");
+
+    if (Parsing(segment, &left, &right))
+        exit(1);
+
+    thread = (pthread_t*)malloc(sizeof(pthread_t) * threads_max);
+    arguments = (arg_t*)malloc(sizeof(arg_t) * threads_max);
+    for (int i = 0; i < threads_max; ++i)
+        thread[i] = 0;
+
+    double eps = (right - left) / (n - 1);
+    double iter = left;
+
+    while (num < n) {
+        help_num = modsum(help_num);
+        arguments[help_num].X = iter;
+        status = pthread_create(thread + help_num, NULL, F, (void*)(arguments + help_num));
+        if (status != SUCCESS) {
+            printf("main error: can't create thread, status = %d\n", status);
+            exit(ERROR_CREATE_THREAD);
+        }
+
+        help_num_2 = modsum(help_num);
+        if (thread[help_num_2]) {
+            status = pthread_join(thread[help_num_2], NULL);
+            if (status != SUCCESS) {
+                fprintf(stdout, "main error: can't join thread, status = %d\n", status);
+                exit(ERROR_JOIN_THREAD);
+            }
+            thread[help_num_2] = 0;
+            prev *= arguments[help_num_2].res;
+            printf("f(%2.10f) = %2.20f\n", arguments[help_num_2].X, prev);
+        }
+        iter += eps;
+        num++;
+    }
+
+    for (help_num = 0; help_num < threads_max && thread[help_num]; ++help_num);
+
+    for (int i = help_num, num = 0; num < threads_max; ++num) {
+        if (thread[i]) {
+            status = pthread_join(thread[i], NULL);
+            if (status != SUCCESS) {
+                fprintf(stdout, "main error: can't join thread, status = %d\n", status);
+                exit(ERROR_JOIN_THREAD);
+            }
+            prev *= arguments[i].res;
+            printf("f(%2.10f) = %2.20f\n", arguments[i].X, prev);
+        }
+        i = modsum(i);
+    }
+
+    free(arguments);
+    free(thread);
+}  
+\end{lstlisting}}
+%\newpage
+%\lstinputlisting{../../lab0/main.c}
+%\includeonly{"../../lab02/main.c"}
+%\include{../../lab02/main.c}
+
+\subsection*{Вывод  strace}
+{\scriptsize 
+\begin{lstlisting}[escapechar=!]
+execve("./all", ["./all"], 0x7fff2cb30688 /* 76 vars */) = 0
+brk(NULL)                               = 0x55dbdb957000
+arch_prctl(0x3001 /* ARCH_??? */, 0x7ffc25311460) = -1 EINVAL (!Недопустимый аргумент!)
+access("/etc/ld.so.preload", R_OK)      = -1 ENOENT (!Нет такого файла или каталога!)
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=371678, ...}) = 0
+mmap(NULL, 371678, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7fa9d33ff000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libpthread.so.0", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\340f\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=155408, ...}) = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fa9d33fd000
+lseek(3, 808, SEEK_SET)                 = 808
+read(3, "\4\0\0\0\20\0\0\0\5\0\0\0GNU\0\2\0\0\300\4\0\0\0\3\0\0\0\0\0\0\0", 32) = 32
+mmap(NULL, 131528, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7fa9d33dc000
+mmap(0x7fa9d33e2000, 61440, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x6000) = 0x7fa9d33e2000
+mmap(0x7fa9d33f1000, 24576, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x15000)
+ = 0x7fa9d33f1000
+mmap(0x7fa9d33f7000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1a000) = 0x7fa9d33f7000
+mmap(0x7fa9d33f9000, 12744, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1,
+ 0) = 0x7fa9d33f9000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libm.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0 \320\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=1587104, ...}) = 0
+mmap(NULL, 1589272, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7fa9d3257000
+mmap(0x7fa9d3264000, 659456, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0xd000) = 0x7fa9d3264000
+mmap(0x7fa9d3305000, 872448, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xae000)
+ = 0x7fa9d3305000
+mmap(0x7fa9d33da000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x182000) = 0x7fa9d33da000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0000C\2\0\0\0\0\0"..., 832) = 832
+lseek(3, 792, SEEK_SET)                 = 792
+read(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\201\336\t\36\251c\324\233E\371SoK\5H\334"..., 68)
+ = 68
+fstat(3, {st_mode=S_IFREG|0755, st_size=2136840, ...}) = 0
+lseek(3, 792, SEEK_SET)                 = 792
+read(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\201\336\t\36\251c\324\233E\371SoK\5H\334"..., 68)
+ = 68
+lseek(3, 864, SEEK_SET)                 = 864
+read(3, "\4\0\0\0\20\0\0\0\5\0\0\0GNU\0\2\0\0\300\4\0\0\0\3\0\0\0\0\0\0\0", 32) = 32
+mmap(NULL, 1848896, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7fa9d3093000
+mprotect(0x7fa9d30b5000, 1671168, PROT_NONE) = 0
+mmap(0x7fa9d30b5000, 1355776, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x22000) = 0x7fa9d30b5000
+mmap(0x7fa9d3200000, 311296, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x16d000)
+ = 0x7fa9d3200000
+mmap(0x7fa9d324d000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1b9000) = 0x7fa9d324d000
+mmap(0x7fa9d3253000, 13888, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1,
+ 0) = 0x7fa9d3253000
+close(3)                                = 0
+mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fa9d3090000
+arch_prctl(ARCH_SET_FS, 0x7fa9d3090740) = 0
+mprotect(0x7fa9d324d000, 16384, PROT_READ) = 0
+mprotect(0x7fa9d33da000, 4096, PROT_READ) = 0
+mprotect(0x7fa9d33f7000, 4096, PROT_READ) = 0
+mprotect(0x55dbdb67a000, 4096, PROT_READ) = 0
+mprotect(0x7fa9d3483000, 4096, PROT_READ) = 0
+munmap(0x7fa9d33ff000, 371678)          = 0
+set_tid_address(0x7fa9d3090a10)         = 7754
+set_robust_list(0x7fa9d3090a20, 24)     = 0
+rt_sigaction(SIGRTMIN, {sa_handler=0x7fa9d33e2130, sa_mask=[],
+sa_flags=SA_RESTORER|SA_SIGINFO, sa_restorer=0x7fa9d33ee3c0}, NULL, 8) = 0
+rt_sigaction(SIGRT_1, {sa_handler=0x7fa9d33e21d0, sa_mask=[],
+sa_flags=SA_RESTORER|SA_RESTART|SA_SIGINFO, sa_restorer=0x7fa9d33ee3c0}, NULL, 8) = 0
+rt_sigprocmask(SIG_UNBLOCK, [RTMIN RT_1], NULL, 8) = 0
+prlimit64(0, RLIMIT_STACK, NULL, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 2), ...}) = 0
+brk(NULL)                               = 0x55dbdb957000
+brk(0x55dbdb978000)                     = 0x55dbdb978000
+write(1, "Max count of threads: 5\n", 24Max count of threads: 5
+) = 24
+fstat(0, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 2), ...}) = 0
+write(1, "Number of points: ", 18Number of points: )      = 18
+read(0, 10
+"10\n", 1024)                   = 3
+write(1, "Segment: ", 9Segment: )                = 9
+read(0, [1,10]
+"[1,10]\n", 1024)               = 7
+write(1, "\n", 1
+)                       = 1
+mmap(NULL, 8392704, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0) = 0x7fa9d288f000
+mprotect(0x7fa9d2890000, 8388608, PROT_READ|PROT_WRITE) = 0
+clone(child_stack=0x7fa9d308efb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d308f9d0, tls=0x7fa9d308f700, child_tidptr=0x7fa9d308f9d0) = 7755
+mmap(NULL, 8392704, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0) = 0x7fa9d208e000
+mprotect(0x7fa9d208f000, 8388608, PROT_READ|PROT_WRITE) = 0
+clone(child_stack=0x7fa9d288dfb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d288e9d0, tls=0x7fa9d288e700, child_tidptr=0x7fa9d288e9d0) = 7756
+mmap(NULL, 8392704, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0) = 0x7fa9d188d000
+mprotect(0x7fa9d188e000, 8388608, PROT_READ|PROT_WRITE) = 0
+clone(child_stack=0x7fa9d208cfb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d208d9d0, tls=0x7fa9d208d700, child_tidptr=0x7fa9d208d9d0) = 7757
+mmap(NULL, 8392704, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0) = 0x7fa9d108c000
+mprotect(0x7fa9d108d000, 8388608, PROT_READ|PROT_WRITE) = 0
+clone(child_stack=0x7fa9d188bfb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d188c9d0, tls=0x7fa9d188c700, child_tidptr=0x7fa9d188c9d0) = 7758
+mmap(NULL, 8392704, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0) = 0x7fa9d088b000
+mprotect(0x7fa9d088c000, 8388608, PROT_READ|PROT_WRITE) = 0
+clone(child_stack=0x7fa9d108afb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d108b9d0, tls=0x7fa9d108b700, child_tidptr=0x7fa9d108b9d0) = 7759
+write(1, "f(1.0000000000) = 1.381773290676"..., 41f(1.0000000000) = 1.38177329067603626989
+) = 41
+clone(child_stack=0x7fa9d308efb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d308f9d0, tls=0x7fa9d308f700, child_tidptr=0x7fa9d308f9d0) = 7760
+write(1, "f(2.0000000000) = 0.681422313928"..., 41f(2.0000000000) = 0.68142231392800700629
+) = 41
+clone(child_stack=0x7fa9d288dfb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d288e9d0, tls=0x7fa9d288e700, child_tidptr=0x7fa9d288e9d0) = 7761
+write(1, "f(3.0000000000) = -0.57844065537"..., 42f(3.0000000000) = -0.57844065537114641717
+) = 42
+clone(child_stack=0x7fa9d208cfb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d208d9d0, tls=0x7fa9d208d700, child_tidptr=0x7fa9d208d9d0) = 7762
+write(1, "f(4.0000000000) = 0.815859375803"..., 41f(4.0000000000) = 0.81585937580395384572
+) = 41
+clone(child_stack=0x7fa9d188bfb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d188c9d0, tls=0x7fa9d188c700, child_tidptr=0x7fa9d188c9d0) = 7763
+write(1, "f(5.0000000000) = -0.55091890659"..., 42f(5.0000000000) = -0.55091890659871411984
+) = 42
+clone(child_stack=0x7fa9d108afb0, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|
+CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+ parent_tidptr=0x7fa9d108b9d0, tls=0x7fa9d108b700, child_tidptr=0x7fa9d108b9d0) = 7764
+write(1, "f(6.0000000000) = -0.37504068371"..., 42f(6.0000000000) = -0.37504068371550630667
+) = 42
+write(1, "f(7.0000000000) = -0.52914072009"..., 42f(7.0000000000) = -0.52914072009899415505
+) = 42
+write(1, "f(8.0000000000) = -0.44651974239"..., 42f(8.0000000000) = -0.44651974239025671309
+) = 42
+write(1, "f(9.0000000000) = 0.222818609956"..., 41f(9.0000000000) = 0.22281860995630112243
+) = 41
+munmap(0x7fa9d288f000, 8392704)         = 0
+write(1, "f(10.0000000000) = -0.3081787794"..., 43f(10.0000000000) = -0.30817877947797533977
+) = 43
+lseek(0, -1, SEEK_CUR)                  = -1 ESPIPE (!Недопустимая операция смещения!)
+exit_group(0)                           = ?
++++ exited with 0 +++
+\end{lstlisting}}
+
+
+\noindent Вывод strace -с для большого количества точек (1000)
+{ \scriptsize
+\begin{lstlisting}
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+65,82    0,014180          14      1000           clone
+34,11    0,007349           7      1004           write
+0,06    0,000013           6         2           munmap
+0,01    0,000003           0         5         1 lseek
+0,00    0,000000           0         9           read
+0,00    0,000000           0         4           close
+0,00    0,000000           0         6           fstat
+0,00    0,000000           0        22           mmap
+0,00    0,000000           0        11           mprotect
+0,00    0,000000           0         3           brk
+0,00    0,000000           0         2           rt_sigaction
+0,00    0,000000           0         1           rt_sigprocmask
+0,00    0,000000           0         1         1 access
+0,00    0,000000           0         1           execve
+0,00    0,000000           0         2         1 arch_prctl
+0,00    0,000000           0         1           set_tid_address
+0,00    0,000000           0         4           openat
+0,00    0,000000           0         1           set_robust_list
+0,00    0,000000           0         1           prlimit64
+------ ----------- ----------- --------- --------- ----------------
+100.00    0,021545                  2080         3 total
+\end{lstlisting}}
+
+
+\subsection*{Дневник отладки}  
+
+В процессе написания программы я пришёл к выводу, что необязательно создавать массив из всех точек, для которых вычисляется значение функции. Намного рациональнее использовать кольцевой буфер (как для потоков, так и для аргументов). В процессе усовершенствования кода было допущено великое множество ошибок доступа к памяти (начиная от использования неинициализированных переменных и заканчивая записью по неверному адресу).
+
+Так же кольцевой буфер своим существованием ограничивает максимальное количество потоков, что весьма удобно
+
+
+\subsection*{Выводы}
+
+Совршенно очевидно, что многопоточность -- это великолепная идея. Чтобы осознать
+это, достаточно взглянуть на большинство серверных приложений: в них потоки позволяют "изолировать"одинаковые участки программы для разных данных. Например, игровой сервер может выделять каждому игроку отдельный поток, стартующий
+при подключении игрока и завершающийся при его отключении. Код, реализующий
+аналогичную функциональность без многопоточности, очень быстро становится совершенно захламленным, а ошибки в нем находятся все труднее и труднее. Можно
+сказать, что потоки состоят со своими управляющими функциями в тех же отношениях, что объекты состоят с классами. Это значит, что мы получаем те же преимущества.
+Неоспоримым недостатком является проблема синхронизации: в описанном выше игровом приложении нельзя допустить, чтобы несколько игроков одновременно читал
+и изменяли базу данных, поскольку в таком случае они могли бы повредить ее содержимое.
+В итоге, я потренировалась в работе с POSIX threads, что очень полезно, так как
+потоки используются повсеместно в промышленном программировании. В который
+раз мне повезло чуть меньше, чем моим коллегам. 32битные шестнадцатиричные
+числа редко где встречаются, первое, что приходит в голову, – md5 суммы. Сложно
+представить себе задачу, в которой нужно вычислять среднее арифметическое таких
+сумм.
+
+\end{document}
+

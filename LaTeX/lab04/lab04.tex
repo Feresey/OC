@@ -1,0 +1,209 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №\,4 по курсу :\\ Операционные системы}
+
+\noindent Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Цель работы}
+
+\noindent Приобретение практических навыков в:
+\begin{itemize}
+\item  Освоение принципов работы с файловыми системами
+\item Обеспечение обмена данных между процессами посредством технологии <<File 
+
+ mapping>>
+    
+\end{itemize}
+
+Составить и отладить программу на языке Си, осуществляющую работу с процессами и взаимодействие между ними в одной из двух операционных систем. В результате работы программа (основной процесс) должен создать для решение задачи один или несколько дочерних процессов. Взаимодействие между процессами осуществляется через системные сигналы/события и/или через отображаемые файлы (memory-mapped files).
+Необходимо обрабатывать системные ошибки, которые могут возникнуть в результате работы.
+
+
+\subsection*{Задание}
+\textbf{Вариант 16.}
+
+На вход программе подается команда интерпретатора команд и имя файла. Программа должна перенаправить стандартный ввод команды с этого файла и вывести результат команды в стандартный выходной поток. Использование операций write и printf запрещено.
+
+\subsection*{Информация}
+
+Собственно, цель программы вызвать с помощью exec* некую программу и перенаправить ввод с указанного файла.
+
+Отличие от второй лабораторной лишь в том, что нужно использовать mmap для отображения виртуальной памяти. 
+Самое сложное при выполнении лабораторной было как раз придумать куда этот mmap впихнуть.
+
+Мною было принято решение использовать эту возможность для ввода имени команды и файла.
+
+Логично создавать для вызова exec отдельный процесс, так как эта функция является системным вызовом и замещает собой породивший её процесс.
+\\
+Для переопределения дескриптора использовалась функция:
+
+\lstinline[language=c]|FILE *freopen(const char *pathname, const char *mode, FILE *stream);|
+
+\noindent Вызов команды интерпретатора осуществляется функцией:
+
+% \\    \smallbreak 
+\lstinline[language=c]|execlp(command, command, NULL);|
+
+Где $command$ --- это имя команды интерпретатора.
+
+\subsection*{Описание программы}
+
+{\scriptsize
+\begin{lstlisting}[language=c,escapechar=@]
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <malloc.h>
+#include <semaphore.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+const int ARG_MAX = 2097152 + 1;
+
+int main()
+{
+    pid_t pid;
+    int rv, fd;
+    char* memory;
+    // @создаем разделяемую память@
+    if ((fd = shm_open("shared_file", 
+       O_RDWR | O_CREAT | O_TRUNC, 
+       S_IRUSR | S_IWUSR)) == -1) {
+        perror("shm::open_fail");
+        exit(-1);
+    }
+    
+    //@задаем ей нужный размер@
+    if (ftruncate(fd, ARG_MAX * 2) == -1) {
+        perror("trucate::fail");
+        exit(-1);
+    }
+    //@отображаем на вирт. память@
+    memory = mmap(NULL, ARG_MAX * 2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0); 
+    
+    if (memory == MAP_FAILED) {
+        perror("mmap::mapping_fail");
+        fprintf(stderr, "%p", memory);
+        exit(-1);
+    }
+    close(fd);
+    
+    char* command = memory;
+    char* filename = memory + ARG_MAX;
+    
+    *command = *filename = '\0';
+    
+    switch (pid = fork()) {
+        case -1: {
+            perror("fork");
+            exit(1);
+        }
+        
+        case 0: {
+            //@Потомок@
+            while (*command == '\0' || *filename == '\0')
+            sleep(1);
+            FILE* my = freopen(filename, "r", stdin);
+            if (!my) {
+                perror("File ERROR");
+                exit(errno);
+            }
+            rv = execlp(command, command, NULL);
+            if (rv)
+                perror("Exec ERROR");
+            fclose(my);
+            _exit(rv);
+        }
+        
+        default: {
+            //@Родитель@
+            scanf("%s %s", command, filename);
+            waitpid(pid, &rv, 0);
+            exit(WEXITSTATUS(rv));
+        }
+    }
+    if (munmap(memory, ARG_MAX * 2)) {
+        perror("munmap");
+        exit(-1);
+    }
+    
+    munmap(memory, ARG_MAX * 2);
+    return 0;
+}
+\end{lstlisting}
+}
+
+\noindent Системные вызовы:
+\begin{enumerate}
+    \item \lstinline[language=c]|int shm_open(const char *name, int oflag, mode_t mode);|  -- создаёт новый разделяемый файл, который может предоставить доступ на чтение и запись сразу нескольким процессам. При успехе возвращает файловый дескриптор на соответствующий файл, при неудаче -1.
+     
+    Были использованы следующие флаги:
+    \subitem O\_RDWR    Open the object for read-write access.
+    \subitem O\_CREAT    Create  the shared memory object if it does not exist.
+    \subitem O\_TRUNC    If the shared memory object already exists, truncate it to zero bytes.
+    
+    
+    \item  \lstinline[language=c]|int ftruncate(int fildes, off_t length);| -- устанавливает размер файла в length байт. При успехе возвращает 0. Если указан неверный дескриптор, или дескриптор указывает на директорию, или возникла другая ошибка возвращается -1.
+    \item \lstinline[language=c]|void *mmap(void *addr, size_t len, int prot, int flags, int fildes, off_t off);| 
+    
+    -- устанавливает отображение между адресным пространством процесса и объектом памяти.
+         
+    Были использованы следующие флаги:
+    \subitem PROT\_READ   Data can be read.
+    \subitem PROT\_WRITE   Data can be written. 
+    \subitem MAP\_SHARED    Changes are shared. 
+    \item \lstinline[language=c]|int munmap(void *addr, size_t len);|  -- удаляет все сопоставления для всех страниц, содержащих любую часть адресного пространства процесса, начиная с addr и на len байт.
+\end{enumerate}
+
+\subsection*{Вывод strace}
+{\begin{lstlisting}
+openat(AT_FDCWD, "/dev/shm/shared_file",
+ O_RDWR|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC, 0600) = 3
+ftruncate(3, 4194306)                   = 0
+mmap(NULL, 2097153, 
+PROT_READ|PROT_WRITE, MAP_SHARED, 3, 0) = 0x7f495335c000
+\end{lstlisting}}
+
+\subsection*{Дневник отладки}
+
+Ошибок не возникало, да и сложно их сделать при таком простом задании. Намного больше времени отняло чтение мануалов по этим командам.
+
+\subsection*{Выводы}
+
+Были приобретены минимальные навыки для работы с разделяемой памятью. К сожалению их использование в данной лабораторной непрактично, но иногда бывает удобно общаться между потоками при помощи shared файлов.
+
+\end{document}
+

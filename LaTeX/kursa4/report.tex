@@ -1,0 +1,217 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Курсовой проект по курсу:\\ Операционные системы}
+
+\noindent Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Цель работы}
+
+\noindent Необходимо спроектировать и реализовать программный прототип в соответствии с
+выбранным вариантом. Произвести анализ и сделать вывод на основании данных,
+полученных при работе программного прототипа.
+
+
+\subsection*{Задание}
+%\textbf{Вариант 13.}
+
+Проектирование консольной клиент-серверной игры точки и квадраты. Должна быть поддержка нескольких игр сразу. Сделать 2 режима игры - с полем 3х3 и 9х9. При отключении одного из игроков второй автоматически выигрывает. В качестве технологии обмена данными использовать сервер сообщений ZeroMQ.
+
+\subsection*{Информация}
+
+Для реализации связи клиент-сервер было использовано несколько паттернов:  RequestResponse для инициализации клиента на сервере, и для отправки ходов, отдельный сокет для проверки соединения клиента с сервером, сокет типа SubscriberPublisher для одновременной отправки текущего состояния игры клиентам.
+
+Сервер запускается с ключом количества одновременных игр (дефолтное значение 5). При запуске сервер запрашивает номер порта, где будет запущен сокет подключения. При подключении клиента к серверу выделяется разделяемая память под игровую сессию. Если клиент подключился к серверу и уже есть одна свободная игра с выбранным режимом, то клиент будет подключён к ней. Обеспечение игры производится  с помощью функции, работающей в отдельном потоке (таким образом игры на самом деле происходят одновременно). 
+
+Первый подключившийся к игре клиент получает идентификатор А, второй клиент - В. Если один из клиентов отключится от игры по техническим причинам, то второй автоматически станет победителем.
+
+{\bf Системные вызовы:}
+\begin{enumerate}
+    \item \lstinline[language=c]|void *zmq_ctx_new ();| -- создаёт новый контекст, возвращает его адрес, в случае неудачи вернётся $NULL$
+    \item \lstinline[language=c]|void *zmq_socket(void *context, int type);| -- создает сокет типа type из котнекста context.
+    \item \lstinline[language=c]|int zmq_connect(void *socket, const char *endpoint);| -- подключает socket к пути endpoint, 0 в случае успеха, -1 в случае ошибки.
+    \item \lstinline[language=c]|int zmq_bind(void *socket, const char *endpoint);| -- присоединяет socket к пути endpoint, 0 в случае успеха, -1 в случае ошибки.
+    \item \lstinline[language=c]|int zmq_msg_init(zmq_msg_t *msg);| -- инициализирует сообщение msg как пустой объект.
+    \item \lstinline[language=c]|int zmq_msg_init_size (zmq_msg_t *msg, size_t size);| -- инициализирует сообщение msg для отправки, устанавливает размер сообщения в size байт. При успехе возвращет 0, при неудаче -1
+    \item \lstinline[language=c]|int zmq_msg_send(zmq_msg_t *msg, void *socket, int flags);| -- отправляет сообщение msg в socket с параметрами flags, возвращает количество отправленных байт, в случае ошибки возвращает -1.
+    \item \lstinline[language=c]|int zmq_msg_recv(zmq_msg_t *msg, void *socket, int flags);| -- получает сообщение из socket в msg с параметрами flags, возвращает количество полученных байт, в случае ошибки возвращает -1.
+    \item \lstinline[language=c]|int zmq_msg_close(zmq_msg_t *msg);| -- очищает содержимое msg, аналог free для сообщений zmq, возвращает 0 в случае успеха и -1 в случае неудачи.
+    \item \lstinline[language=c]|int zmq_close(void *socket);| -- закрывает сокет socket, возвращает 0 в случае успеха и -1 в случае неудачи.
+    \item \lstinline[language=c]|int zmq_ctx_destroy(void *context);| -- разрушает контекст context, блокирует доступ всем операциям кроме \lstinline|zmq_close|, все сообщения в сокетах либо физически отправлены, либо "висят".
+\end{enumerate}
+
+
+
+\subsection*{Описание программы}
+
+Игровые сессии хранятся на сервере в виде массива, структура одной игровой сессии выглядит следующим образом:
+{\footnotesize \begin{lstlisting}[language=C]
+typedef struct game {
+    int A, B, pub_id;
+    void *pub, *A_sub, *B_sub;
+    field_t* field;
+    uint num;
+    point_t point;
+} game_t;
+\end{lstlisting}}
+
+Где A,B это идентификационные номера игроков, которые они указали при подключении к серверу. pub\_id - номер порта, на котором будет запущен сокет Subscriber-Publisher. Собственно, сам сокет - pub. A\_sub и B\_sub - сокеты для проверки соединения клиентов. field - игровое поле. num - номер игровой сессии. point - энумератор, обозначающий какой игрок сейчас ходит.
+\newline
+
+
+Основные структуры и функции определены в файле {\bf game.h}:
+{\footnotesize \begin{lstlisting}[language=C]
+#ifndef GAME_H
+#define GAME_H
+
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <zmq.h>
+#include <stdint.h>
+
+typedef uint8_t uint;
+#define WRONG_TURN -1
+
+typedef enum {
+    A,
+    B,
+    nothing
+} point_t;
+
+typedef enum side {
+    top,
+    right,
+    bottom,
+    left
+} side_t;
+
+typedef struct cell {
+    unsigned char edges[4];
+    point_t type;
+} cell_t;
+
+typedef struct turn {
+    uint x, y;
+    side_t side;
+} turn_t;
+
+typedef struct field {
+    cell_t** regiment;
+    uint size;
+    char end;
+} field_t;
+
+typedef struct Message {
+    turn_t turn;
+    int id, req;
+    point_t point;
+    uint size;
+} Message_t;
+
+field_t gen_field(uint size);
+void destroy_field(field_t F);
+
+void show_field(field_t f);
+int fix_field(point_t player, field_t* f);
+
+void get_turn(uint x, uint y, side_t side, field_t f);
+int try_turn(field_t* f, turn_t choice, point_t player);
+
+void send_field(field_t field, void* requester);
+void get_field(field_t* field, void* resiever);
+#endif // GAME_H
+\end{lstlisting}}
+
+\subsection*{Исходный код}
+
+{\footnotesize
+\lstinputlisting[escapechar=~,language=C]{../../kursa4/server.c}
+	
+\lstinputlisting[escapechar=~,language=C]{../../kursa4/client.c}
+}
+
+\subsection*{Тестирование}
+
+К серверу по очереди подключаются 4 игрока - 2 в режиме 3х3 и 2 в режиме 9х9:
+{\footnotesize \begin{lstlisting}
+Server started, max count of games is: 5
+Enter server's adress: 1234
+Server started
+Created new game, size=3, adress=tcp://*:2001,game_id=0
+Players joined to game 0: player_A=1, player_B=2
+Game 0 deleted
+Created new game, size=9, adress=tcp://*:2001,game_id=0
+Players joined to game 0: player_A=3, player_B=4
+Game 0 deleted
+\end{lstlisting}}
+Так как клиенты подключались по очереди, игры происходили последовательно. 
+\newline
+
+\noindent К серверу сначала подключается игрок с режимом 3х3, затем 9х9  и снова 3х3 и 9х9:
+{\footnotesize \begin{lstlisting}
+Server started, max count of games is: 5
+Enter server's adress: 1234
+Server started
+Created new game, size=3, adress=tcp://*:2001,game_id=0
+Created new game, size=9, adress=tcp://*:2002,game_id=1
+Players joined to game 0: player_A=1, player_B=2
+Game 0 deleted
+Players joined to game 1: player_A=3, player_B=4
+Game 1 deleted
+\end{lstlisting}}
+
+\noindent К серверу подключается игрок с режимом 3х3, затем игрок 9х9. Потом подключается, но не играет ещё один игрок с режимом 3х3, затем подключается игрок с режимом 9х9 и играет сессию до конца. Продолжают играть два игрока с режимом 3х3.
+
+{\footnotesize \begin{lstlisting}
+Server started, max count of games is: 5
+Enter server's adress: 1234
+Server started
+Created new game, size=3, adress=tcp://*:2001,game_id=0
+Created new game, size=9, adress=tcp://*:2002,game_id=1
+Players joined to game 0: player_A=1, player_B=2
+Players joined to game 1: player_A=3, player_B=4
+Game 0 deleted
+Game 1 deleted
+\end{lstlisting}}
+
+
+\subsection*{Выводы}
+
+В данном курсовом проекте было использовано практически всё, что содержится в курсе операционных систем, начиная от мьютексов и работы с потоками, и заканчивая сокетами и разделяемой памятью. 
+
+Я использовал эти технологии в курсовом проекте потому что это сильно упрощает разработку программ и многократно увеличивает возможности для расширения функционала готового приложения. Например, можно несколько изменить код сервера, и тогда он сможет запоминать статистику игр и восстанавливать её, если программа неожиданно завершится или возникнет техническая неисправность. 
+
+Путём добавления пары строчек можно реализовать обмен небольшими сообщениями между клиентами, или сделать клиента-администратора, который сможет управлять сервером.
+
+Курс операционных систем был очень интересным  и познавательным. теперь я больше знаю о возможностях операционной системы и специфических средствах отладки, в неё встроенных. Хотя лабораторные работы были небольшими и не очень сложными, они отнимали много времени на осмысление того что от меня надо и как это сделать. 
+
+\end{document}
+

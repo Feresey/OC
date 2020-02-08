@@ -1,0 +1,236 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №\,2 по курсу :\\ Операционные системы}
+
+Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Условие}
+
+%Описание задачи: 
+\begin{itemize}
+    \item Постановка задачи:\subitem Составить и отладить программу на языке Си, осуществляющую работу с процессами и взаимодействие между ними в операционной системе Linux. В результате работы программа (основной процесс) должен создать для решение задачи один или несколько дочерних процессов. Взаимодействие между процессами осуществляется через системные сигналы/события и/или каналы (pipe).
+    Необходимо обрабатывать системные ошибки, которые могут возникнуть в результате работы. 
+    
+    \item Вариант задания  \subitem На вход программе подаётся команда интерпретатора команд и имя файла. Программа должна перенаправить стандартный ввод команды с этого файла и вывести результат команды в стандартный выходной поток. Использование операций $write$ и $printf$ запрещено.
+\end{itemize}
+
+\subsection*{Метод решения}
+
+Суть программы заключается в переопределении файлового дескриптора для stdio и вызова команды с помощью exec.
+
+Логично создавать для вызова exec отдельный процесс, так как эта функция является системным вызовом и замещает собой породивший её процесс.
+\\
+Для переопределения дескриптора использовалась функция:
+
+\lstinline| freopen(file, "r", stdin);|
+
+Где $file$ --- это имя файла, подающееся на вход вызываемой команде.\\
+Вызов команды интерпретатора осуществляется функцией:
+
+% \\    \smallbreak 
+\lstinline| execlp(command, command, NULL);|
+
+
+Где $command$ --- это имя команды интерпретатора.
+
+\subsection*{Описание программы}
+
+\begin{lstlisting}[escapechar=|]
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
+
+int main()
+{
+    pid_t pid;
+    int rv;
+    char command[100];
+    char file[100];
+    
+    switch (pid = fork()){
+        case -1:
+            perror("fork"); // |произошла ошибка|
+            exit(1);        //| выход из родительского процесса|
+        case 0: //| Потомок|
+            scanf("%s\n%s", command, file);
+            freopen(file, "r", stdin);
+            if (errno){
+                perror("File ERROR");
+                exit(errno);
+    }
+    
+    rv = execlp(command, command, NULL);
+    if (rv)
+    perror("Exec ERROR");
+    _exit(rv);
+    default: |// Родитель|
+    waitpid(pid, &rv, 0);
+    exit(WEXITSTATUS(rv));
+    }
+}
+    
+\end{lstlisting}
+%\newpage
+%\lstinputlisting{../../lab0/main.c}
+%\includeonly{"../../lab02/main.c"}
+%\include{../../lab02/main.c}
+
+\subsection*{Вывод  strace}
+{\scriptsize 
+\begin{lstlisting}[escapechar=!]
+execve("./main", ["./main"], 0x7ffcf85d5850 /* 75 vars */) = 0
+brk(NULL)                               = 0x557ef8389000
+arch_prctl(0x3001 /* ARCH_??? */, 0x7fff8a829f50) = -1 EINVAL (!Недопустимый аргумент!)
+access("/etc/ld.so.preload", R_OK)      = -1 ENOENT (!Нет такого файла или каталога!)
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+fstat(3, {st_mode=S_IFREG|0644, st_size=362838, ...}) = 0
+mmap(NULL, 362838, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f34cda1f000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libpthread.so.0", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\340f\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=155408, ...}) = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f34cda1d000
+lseek(3, 808, SEEK_SET)                 = 808
+read(3, "\4\0\0\0\20\0\0\0\5\0\0\0GNU\0\2\0\0\300\4\0\0\0\3\0\0\0\0\0\0\0", 32) = 32
+mmap(NULL, 131528, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f34cd9fc000
+mmap(0x7f34cda02000, 61440, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x6000) = 0x7f34cda02000
+mmap(0x7f34cda11000, 24576, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x15000) 
+= 0x7f34cda11000
+mmap(0x7f34cda17000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1a000) = 0x7f34cda17000
+mmap(0x7f34cda19000, 12744, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, 
+-1, 0) = 0x7f34cda19000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libm.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0 \320\0\0\0\0\0\0"..., 832) = 832
+fstat(3, {st_mode=S_IFREG|0755, st_size=1587104, ...}) = 0
+mmap(NULL, 1589272, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f34cd877000
+mmap(0x7f34cd884000, 659456, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 
+3, 0xd000) = 0x7f34cd884000
+mmap(0x7f34cd925000, 872448, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xae000) 
+= 0x7f34cd925000
+mmap(0x7f34cd9fa000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x182000) = 0x7f34cd9fa000
+close(3)                                = 0
+openat(AT_FDCWD, "/usr/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0000C\2\0\0\0\0\0"..., 832) = 832
+lseek(3, 792, SEEK_SET)                 = 792
+read(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\201\336\t\36\251c\324\233E\371SoK\5H\334"..., 68)
+ = 68
+fstat(3, {st_mode=S_IFREG|0755, st_size=2136840, ...}) = 0
+lseek(3, 792, SEEK_SET)                 = 792
+read(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\201\336\t\36\251c\324\233E\371SoK\5H\334"..., 68)
+ = 68
+lseek(3, 864, SEEK_SET)                 = 864
+read(3, "\4\0\0\0\20\0\0\0\5\0\0\0GNU\0\2\0\0\300\4\0\0\0\3\0\0\0\0\0\0\0", 32) = 32
+mmap(NULL, 1848896, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f34cd6b3000
+mprotect(0x7f34cd6d5000, 1671168, PROT_NONE) = 0
+mmap(0x7f34cd6d5000, 1355776, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE,
+ 3, 0x22000) = 0x7f34cd6d5000
+mmap(0x7f34cd820000, 311296, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x16d000)
+ = 0x7f34cd820000
+mmap(0x7f34cd86d000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3,
+ 0x1b9000) = 0x7f34cd86d000
+mmap(0x7f34cd873000, 13888, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1,
+ 0) = 0x7f34cd873000
+close(3)                                = 0
+mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f34cd6b0000
+arch_prctl(ARCH_SET_FS, 0x7f34cd6b0740) = 0
+mprotect(0x7f34cd86d000, 16384, PROT_READ) = 0
+mprotect(0x7f34cd9fa000, 4096, PROT_READ) = 0
+mprotect(0x7f34cda17000, 4096, PROT_READ) = 0
+mprotect(0x557ef80dc000, 4096, PROT_READ) = 0
+mprotect(0x7f34cdaa1000, 4096, PROT_READ) = 0
+munmap(0x7f34cda1f000, 362838)          = 0
+set_tid_address(0x7f34cd6b0a10)         = 9760
+set_robust_list(0x7f34cd6b0a20, 24)     = 0
+rt_sigaction(SIGRTMIN, {sa_handler=0x7f34cda02130, sa_mask=[],
+ sa_flags=SA_RESTORER|SA_SIGINFO, sa_restorer=0x7f34cda0e3c0}, NULL, 8) = 0
+rt_sigaction(SIGRT_1, {sa_handler=0x7f34cda021d0, sa_mask=[],
+ sa_flags=SA_RESTORER|SA_RESTART|SA_SIGINFO, sa_restorer=0x7f34cda0e3c0}, NULL, 8) = 0
+rt_sigprocmask(SIG_UNBLOCK, [RTMIN RT_1], NULL, 8) = 0
+prlimit64(0, RLIMIT_STACK, NULL, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+brk(NULL)                               = 0x557ef8389000
+brk(0x557ef83aa000)                     = 0x557ef83aa000
+mmap(NULL, 2101248, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f34cd4af000
+mmap(NULL, 2101248, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f34cd2ae000
+clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, 
+child_tidptr=0x7f34cd6b0a10) = 9762
+wait4(9762, ./lab01 10
+10.12.63	4d4691e7cfebe79b9722e274750b4222b2470c5433e8a15dbaac06b3
+0.12.83	4ea299d7ad460e7b355e60fb04b2cd99ff36b36585c6d2d6eaf87f
+3.10.125	42efe7b30ef5777e4cd4b1b927f672
+15.12.246	4049b4392bc0998998b375
+10.10.422	80c751cea9992cd8560624ca306ebb98
+11.7.475	59ce7e1d0247467518
+6.0.499	1c6b85f4fce7
+29.9.1096	a4c44cd3bfb6438db30d88e570bf3d87c942edcae11de5f538de12975fd385
+22.7.1321	
+2.8.1994	e037ae90587681c36ad18b10028d4b6359
+[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 9762
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=9762, si_uid=1000,
+ si_status=0, si_utime=0, si_stime=0} ---
+exit_group(0)                           = ?
++++ exited with 0 +++
+
+\end{lstlisting}}
+
+При вызове <<strace>> для проверки корректности работы программы была использована лабораторная работа по дискретному анализу, для которой необходим ввод из файла (сортировка значений за линейное время по ключу типа DD.MM.YYYY)
+
+\subsection*{Дневник отладки}  
+
+Для начала я освежил знания по созданию процессов и связи между ними.
+
+Затем производил эксперименты с функцией $exec$ и её производными.
+В процессе изучения я понял, что путь для программы необходимо указывать относительно (в случае если команда не содержится в $/usr/bin$), и относительным $./path/to/file$ если она не лежит в $/usr/bin$.
+
+\subsection*{Недочёты}
+
+Задача данной лабораторной заключается именно в получении базовых знаний работы с процессами и системными вызовами. Практической необходимости создания нескольких процессов по моему варианту задания не требуется (за меня всё сделает $exec$)
+
+\subsection*{Выводы}
+
+Вызов $fork$ дублирует породивший его процесс со всеми его переменными, файловыми дескрипторами, приоритетами процесса, рабочий и корневой каталоги, и сегментами выделенной памяти.
+
+Ребёнок {\bf не} наследует:
+\begin{itemize}
+    \item идентификатора процесса (PID, PPID);
+    \item израсходованного времени ЦП (оно обнуляется);
+    \item сигналов процесса-родителя, требующих ответа;
+    \item блокированных файлов (record locking).
+\end{itemize}
+
+В процессе выполнения лабораторной работы были приобретены навыки практического применения создания, обработки и отслеживания их состояния. Для выполнения данного варианта задания создание потоков как таковых не требуется, так как всю работу выполняет системный вызов <<exec>>.
+
+\end{document}
+

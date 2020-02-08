@@ -1,0 +1,155 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[T1, T2A]{fontenc}
+\usepackage{fullpage}
+\usepackage{multicol,multirow}
+\usepackage{tabularx}
+\usepackage{ulem}
+\usepackage{listings} 
+\usepackage[english,russian]{babel}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{indentfirst}
+\usepackage{ulem} 
+
+
+\parindent=1cm
+\makeatletter
+\newcommand{\rindex}[2][\imki@jobname]{%
+    \index[#1]{\detokenize{#2}}%
+}
+\makeatother
+\newcolumntype{P}[1]{>{\raggedbottom\arraybackslash}p{#1}}
+
+\linespread{1}
+\pgfplotsset{compat=1.16}
+\begin{document}
+
+\section*{\centering Лабораторная работа №\,6 по курсу :\\ Операционные системы}
+
+\noindent Выполнил студент группы М8О-208Б-17 МАИ \,\, \textit{Милько Павел}.
+
+\subsection*{Цель работы}
+
+\noindent Реализовать клиент-среверную систему по асинхронной обработке запросов. Необходимо составить программы сервера и клиента. При запуске сервер и клиент должны быть настраиваемы, то есть должна быть возможность поднятия на одной ЭВМ нескольких серверов по обработке данных и нескольких клиентов, которые к ним относятся. Все общение между процессами сервера и клиентов должно осуществляться
+через сервер сообщений. Серверное приложение -- банк. Клиентское приложение -- клиент банка. Клиент может отправить какую-то денежную сумму в банк на хранения. Клиент также может запросить из банка произвольную сумму. Клиенты могут посылать суммы на счета других клиентов. Запросить собственный счет. При снятии должна производиться проверка на то, что у клиента достаточно денег для снятия денежных средств. Идентификатор клиента задается во время запуска клиентского приложения, как и адрес банка. Считать, что идентификаторы при запуске клиентов будут уникальными.
+
+
+
+\subsection*{Задание}
+\textbf{Вариант 13.}
+
+\begin{itemize}
+    \item Сервер сообщений: ZeroMQ.
+    \item Внутреннее хранилище сервера: линейный список (однонаправленный).
+    \item Тип ключа клиента: вещественный 64-битный.
+    \item Дополнительные возможности сервера: возможность временной приостановки работы сервера без выключения. Сообщения серверу можно отправлять, но ответы сервер не отправляет до возобновления работы.
+\end{itemize}
+
+\subsection*{Информация}
+
+Для реализации связи клиент-сервер был выбран паттерн Request-Response. Клиент отправляет запрос на сервер и ждёт ответа. После того, как ответ пришел, клиент может продолжать работу. Клиент подключается к серверу, производит проверку на наличие клиента в базе, затем работает с сервером. Сервер обрабатывает запросы
+клиента, смотрит его наличие и состояние баланса, в случае ошибки или недостатке средств посылает соответствующий ответ клиенту, также выводит лог действий на stdout. Если сервер заблокирован, то он не принимает сообщения от клиентов пока его не разблокируют.
+
+
+\noindent Как только работа сервера возобновлена, он продолжает обрабатывать новые приходящие запросы.
+
+Системные вызовы:
+\begin{enumerate}
+    \item \lstinline[language=c]|void *zmq_ctx_new ();| -- создаёт новый контекст, возвращает его адрес, в случае неудачи вернётся $NULL$
+    \item \lstinline[language=c]|void *zmq_socket(void *context, int type);| -- создает сокет типа type из котнекста context.
+    \item \lstinline[language=c]|int zmq_connect(void *socket, const char *endpoint);| -- подключает socket к пути endpoint, 0 в случае успеха, -1 в случае ошибки.
+    \item \lstinline[language=c]|int zmq_bind(void *socket, const char *endpoint);| -- присоединяет socket к пути endpoint, 0 в случае успеха, -1 в случае ошибки.
+    \item \lstinline[language=c]|int zmq_msg_init(zmq_msg_t *msg);| -- инициализирует сообщение msg как пустой объект.
+    \item \lstinline[language=c]|int zmq_msg_init_size (zmq_msg_t *msg, size_t size);| -- инициализирует сообщение msg для отправки, устанавливает размер сообщения в size байт. При успехе возвращет 0, при неудаче -1
+    \item \lstinline[language=c]|int zmq_msg_send(zmq_msg_t *msg, void *socket, int flags);| -- отправляет сообщение msg в socket с параметрами flags, возвращает количество отправленных байт, в случае ошибки возвращает -1.
+    \item \lstinline[language=c]|int zmq_msg_recv(zmq_msg_t *msg, void *socket, int flags);| -- получает сообщение из socket в msg с параметрами flags, возвращает количество полученных байт, в случае ошибки возвращает -1.
+    \item \lstinline[language=c]|int zmq_msg_close(zmq_msg_t *msg);| -- очищает содержимое msg, аналог free для сообщений zmq, возвращает 0 в случае успеха и -1 в случае неудачи.
+    \item \lstinline[language=c]|int zmq_close(void *socket);| -- закрывает сокет socket, возвращает 0 в случае успеха и -1 в случае неудачи.
+    \item \lstinline[language=c]|int zmq_ctx_destroy(void *context);| -- разрушает контекст context, блокирует доступ всем операциям кроме \lstinline|zmq_close|, все сообщения в сокетах либо физически отправлены, либо "висят".
+\end{enumerate}
+
+\newpage
+
+\subsection*{Описание программы}
+
+\noindent Для простоты обмена сообщениями данные передавались только с помощью одной структуры:
+
+{ \scriptsize
+\begin{lstlisting}[language=c]
+#define STR_SIZE 256
+#define ID double
+
+typedef struct _msg {
+    ID    client;
+    int   sum;
+    int   action;
+    ID    receiverClient;
+    void* requester;
+    char  message[STR_SIZE];
+} Message_t;
+
+\end{lstlisting}
+}
+
+\noindent Для реализации функций банка были использованы следующие структуры и функции: 
+{ \scriptsize
+\begin{lstlisting}[language=c]
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "message.h"
+
+#define SUCCESS 1
+#define NOT_MEMORY -1
+#define NOT_ENOUGH_MONEY -2
+#define NOT_CLIENT -3
+#define RECEIVER_NOT_CLIENT -4
+
+typedef struct _client {
+    ID id;
+    int sum;
+} Client;
+
+typedef struct _client_base {
+    Client client;
+    struct _client_base* next;
+} ClientBase;
+
+ClientBase* Bank_init();
+void Bank_add_client(ClientBase*, ID client);
+void Bank_print_client_base(ClientBase*);
+Client* _Bank_find_client(ClientBase*, double clientID);
+void Bank_destroy_database(ClientBase*);
+int Bank_destroy_account(ClientBase*, double clientID);
+
+void Bank_put_money(double ClientID, int sum, ClientBase*);
+int Bank_get_money(double ClientID, int sum, ClientBase*);
+int Bank_send_money(ID clientSender, ID clientReceiver, int sum, ClientBase*);
+int Bank_get_info(ClientBase*, ID client);
+\end{lstlisting}
+}
+\newpage
+\subsection*{Дневник отладки}
+
+При написании лабораторной возникали проблемы с передачей сообщений (отправлял не на сокет клиента, а на свой собственный, естественно мне никто не отвечал). И с утечками памяти (забыл сделать zmq\_msg\_close).
+
+ Также из за неверно введённых данных циклически отправлялось сообщение последнему клиенту (забыл пункт default внутри switch-case в основном цикле)
+
+\subsection*{Выводы}
+
+Это была интересная лабораторная, потому что у нас была относительная свобода в выборе архитектурных решений. Это всегда лучше, чем следовать заранее определённому плану (остаётся больше возможностей для костылей). Благодаря работе с сервером сообщений, я узнал о сокетах, и различных видах паттернов передачи сообщений.
+
+При построении серверов, которые сохраняют состояние клиентов, возникают классические проблемы. Если сервер хранит состояние каждого клиента, а клиентов
+подключается все больше и больше, в конце концов наступает момент исчерпания
+ресурсов. Даже если одни и те же клиенты сохраняют коннект и используется идентификация по умолчанию, то каждое соединение будет выглядеть как новое.
+
+Код из данной лабораторной лучше никому не показывать во избежания несчастных случаев. О безопасности подключения клиентов лучше не вспоминать, удобство интерфейса на уровне плинтуса. Единственный плюс моего кода -- стабильность на больших данных и отказоустойчивость при неверных запросах.
+
+Работа с сокетами была интересной и познавательной, а так же непривычной (геморройной). Мне кажется что я собрал все возможные ошибки, начиная с сигфолта сервера при получении сообщения от клиента и заканчивая fork-бомбой, из за которой пришлось перезагружать компьютер 4 раза.
+
+\end{document}
+
